@@ -1,0 +1,3 @@
+time_step,start_floor,direction,destination_floor
+1,2,1,5
+10,4,-1,1
