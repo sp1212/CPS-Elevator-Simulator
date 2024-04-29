@@ -7,8 +7,8 @@ class Elevator:
         self.direction = 1  # 1 for up, -1 for down
         self.door_open = False
         self.time_to_next_action = 0
-        self.requests = []  # Future requests
-        self.active_requests = []  # Currently being processed requests
+        self.requests = []  # Future requests pending activation
+        self.active_requests = []  # Requests ready for processing
         self.passengers = []  # Passengers currently in the elevator
         self.scheduling_method = scheduling_method
         self.target_floor = None  # Next target to stop at
@@ -35,25 +35,30 @@ class Elevator:
         self.time_to_next_action = 2  # Time to move one floor
 
     def process_next_request(self):
-        # Check and drop off any passengers whose destination is the current floor
-        for passenger in self.passengers[:]:  # Copy list for safe iteration
+        # Drop off passengers whose destination is the current floor
+        dropped_off = False
+        for passenger in list(self.passengers):  # Iterate over a copy to safely modify the list
             if passenger[3] == self.current_floor:
                 self.open_doors()  # Open doors to let passengers out
                 self.passengers.remove(passenger)
+                dropped_off = True
 
-        # Pick up new passengers at the current floor
-        for request in self.active_requests[:]:  # Copy list for safe iteration
+        if dropped_off:
+            return
+
+        # Pick up new passengers
+        for request in list(self.active_requests):  # Copy list for safe iteration
             if request[1] == self.current_floor:
                 self.open_doors()  # Open doors to pick up new passengers
                 self.passengers.append(request)
                 self.active_requests.remove(request)
+                break
 
-        # If no specific action, find the next target
-        if not self.door_open:
+        if not self.door_open and not self.passengers:
             self.set_next_target()
 
     def set_next_target(self):
-        # Determine the next target based on passenger destinations and active requests
+        # Choose the next target based on the nearest request or passenger destination
         if self.passengers:
             self.target_floor = min(self.passengers, key=lambda x: abs(x[3] - self.current_floor))[3]
         elif self.active_requests:
@@ -65,11 +70,16 @@ class Elevator:
 
     def close_doors(self):
         self.door_open = False
+        # Continue to the next destination or wait
+        if self.passengers:
+            self.target_floor = min(self.passengers, key=lambda x: abs(x[3] - self.current_floor))[3]
+        elif self.active_requests:
+            self.target_floor = min(self.active_requests, key=lambda x: abs(x[1] - self.current_floor))[1]
 
     def format_requests(self):
         # Show both active requests and passengers being transported
-        active = '; '.join(f"Active: ({r[1]}, {r[2]}, {r[3]})" for r in self.active_requests)
-        passengers = '; '.join(f"Passenger: ({r[1]}, {r[2]}, {r[3]})" for r in self.passengers)
+        active = '; '.join(f"Active: ({r[0]}, {r[1]}, {r[2]}, {r[3]})" for r in self.active_requests)
+        passengers = '; '.join(f"Passenger: ({r[0]}, {r[1]}, {r[2]}, {r[3]})" for r in self.passengers)
         return active + " | " + passengers if active and passengers else active + passengers
 
 class Simulation:
@@ -91,17 +101,15 @@ class Simulation:
     def run(self, total_time_steps):
         with open("output.txt", "w") as file:
             file.write(f"Scheduling Method: {self.scheduling_method}, Floors: {self.num_floors}, Total Time Steps: {total_time_steps}\n")
-            file.write("Time Step,Current Floor,Doors Status,Moving Status,Start Floor,Stop Floor,Requests\n")
+            file.write("Time Step,Current Floor,Doors Status,Moving Status,Requests\n")
             for _ in range(total_time_steps):
                 self.elevator.move(self.time_step)
                 moving_status = 'Moving' if not self.elevator.door_open and self.elevator.current_floor != self.elevator.target_floor else 'Stationary'
                 doors_status = 'Open' if self.elevator.door_open else 'Closed'
-                start_floor = self.elevator.current_floor if self.elevator.door_open else ''
-                stop_floor = self.elevator.target_floor if self.elevator.door_open else ''
                 requests_status = self.elevator.format_requests()
-                file.write(f"{self.time_step},{self.elevator.current_floor},{doors_status},{moving_status},{start_floor},{stop_floor},{requests_status}\n")
+                file.write(f"{self.time_step},{self.elevator.current_floor},{doors_status},{moving_status},{requests_status}\n")
                 self.time_step += 1
 
 # Assuming the CSV input file structure is correct and exists, run the simulation:
 sim = Simulation(num_floors=10, scheduling_method='FCFS')
-sim.run(100)  # Run the simulation for 100 time steps
+sim.run(200)  # Run the simulation for 200 time steps
