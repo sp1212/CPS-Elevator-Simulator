@@ -1,11 +1,13 @@
 # This code was adapted with the help of ChatGPT
 
 import csv
+from itertools import chain
 
 class Elevator:
     def __init__(self, num_floors, scheduling_method='FCFS'):
-        self.current_floor = 1  # Starts at the lowest floor
+        self.current_floor = 1
         self.num_floors = num_floors
+        self.direction = 1  # 1 for up, -1 for down
         self.door_open = False
         self.time_to_next_action = 0
         self.requests = []  # Future requests pending activation
@@ -15,7 +17,6 @@ class Elevator:
         self.target_floor = None  # Next target to stop at
 
     def move(self, current_time_step):
-        # Activate requests due at current time step
         while self.requests and self.requests[0][0] == current_time_step:
             self.active_requests.append(self.requests.pop(0))
 
@@ -26,7 +27,7 @@ class Elevator:
         if self.door_open:
             self.close_doors()
         elif not self.active_requests and not self.passengers:
-            self.target_floor = None  # No requests to process
+            self.target_floor = None
         elif self.target_floor and self.current_floor != self.target_floor:
             self.move_towards_target()
         else:
@@ -35,16 +36,14 @@ class Elevator:
     def move_towards_target(self):
         step = 1 if self.target_floor > self.current_floor else -1
         self.current_floor += step
-        self.time_to_next_action = 2  # Time to move one floor
+        self.time_to_next_action = 2
 
     def process_requests(self):
-        # Check for any drop-offs at the current floor
         for passenger in list(self.passengers):
             if passenger[2] == self.current_floor:
                 self.open_doors()
                 self.passengers.remove(passenger)
 
-        # Check for pickups at the current floor
         for request in list(self.active_requests):
             if request[1] == self.current_floor:
                 self.open_doors()
@@ -56,11 +55,20 @@ class Elevator:
 
     def update_target_floor(self):
         if self.scheduling_method == 'SSTF':
-            # Set the next target based on the closest destination
             all_destinations = [p[2] for p in self.passengers] + [r[1] for r in self.active_requests]
             if all_destinations:
                 self.target_floor = min(all_destinations, key=lambda x: abs(x - self.current_floor))
-        else:  # Default to FCFS
+        elif self.scheduling_method == 'Directional':
+            current_destinations = [p[2] for p in self.passengers] + [r[1] for r in self.active_requests]
+            in_direction = list(filter(lambda x: (x - self.current_floor) * self.direction > 0, current_destinations))
+            if not in_direction and current_destinations:
+                self.direction *= -1
+                in_direction = list(filter(lambda x: (x - self.current_floor) * self.direction > 0, current_destinations))
+            if in_direction:
+                self.target_floor = sorted(in_direction, key=lambda x: abs(x - self.current_floor))[0]
+            else:
+                self.target_floor = None
+        else:
             if self.passengers:
                 self.target_floor = self.passengers[0][2]
             elif self.active_requests:
@@ -89,7 +97,7 @@ class Simulation:
     def load_requests(self):
         with open('input.csv', newline='') as csvfile:
             request_reader = csv.reader(csvfile, delimiter=',')
-            next(request_reader)  # Skip header
+            next(request_reader)
             for row in request_reader:
                 time_step, start_floor, destination_floor = int(row[0]), int(row[1]), int(row[2])
                 self.elevator.requests.append((time_step, start_floor, destination_floor))
@@ -107,5 +115,5 @@ class Simulation:
                 self.time_step += 1
 
 # Assuming the CSV input file structure is correct and exists, run the simulation:
-sim = Simulation(num_floors=10, scheduling_method='SSTF')
+sim = Simulation(num_floors=10, scheduling_method='FCFS')
 sim.run(200)  # Run the simulation for 200 time steps
