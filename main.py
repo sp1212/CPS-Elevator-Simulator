@@ -1,10 +1,11 @@
+# This code was adapted with the help of ChatGPT
+
 import csv
 
 class Elevator:
     def __init__(self, num_floors, scheduling_method='FCFS'):
         self.current_floor = 1  # Starts at the lowest floor
         self.num_floors = num_floors
-        self.direction = 1  # 1 for up, -1 for down
         self.door_open = False
         self.time_to_next_action = 0
         self.requests = []  # Future requests pending activation
@@ -24,62 +25,57 @@ class Elevator:
 
         if self.door_open:
             self.close_doors()
+        elif not self.active_requests and not self.passengers:
+            self.target_floor = None  # No requests to process
         elif self.target_floor and self.current_floor != self.target_floor:
             self.move_towards_target()
         else:
-            self.process_next_request()
+            self.process_requests()
 
     def move_towards_target(self):
         step = 1 if self.target_floor > self.current_floor else -1
         self.current_floor += step
         self.time_to_next_action = 2  # Time to move one floor
 
-    def process_next_request(self):
-        # Drop off passengers whose destination is the current floor
-        dropped_off = False
-        for passenger in list(self.passengers):  # Iterate over a copy to safely modify the list
-            if passenger[3] == self.current_floor:
-                self.open_doors()  # Open doors to let passengers out
+    def process_requests(self):
+        # Check for any drop-offs at the current floor
+        for passenger in list(self.passengers):
+            if passenger[2] == self.current_floor:
+                self.open_doors()
                 self.passengers.remove(passenger)
-                dropped_off = True
 
-        if dropped_off:
-            return
-
-        # Pick up new passengers
-        for request in list(self.active_requests):  # Copy list for safe iteration
+        # Check for pickups at the current floor
+        for request in list(self.active_requests):
             if request[1] == self.current_floor:
-                self.open_doors()  # Open doors to pick up new passengers
+                self.open_doors()
                 self.passengers.append(request)
                 self.active_requests.remove(request)
-                break
 
-        if not self.door_open and not self.passengers:
-            self.set_next_target()
+        if not self.door_open:
+            self.update_target_floor()
 
-    def set_next_target(self):
-        # Choose the next target based on the nearest request or passenger destination
-        if self.passengers:
-            self.target_floor = min(self.passengers, key=lambda x: abs(x[3] - self.current_floor))[3]
-        elif self.active_requests:
-            self.target_floor = min(self.active_requests, key=lambda x: abs(x[1] - self.current_floor))[1]
+    def update_target_floor(self):
+        if self.scheduling_method == 'SSTF':
+            # Set the next target based on the closest destination
+            all_destinations = [p[2] for p in self.passengers] + [r[1] for r in self.active_requests]
+            if all_destinations:
+                self.target_floor = min(all_destinations, key=lambda x: abs(x - self.current_floor))
+        else:  # Default to FCFS
+            if self.passengers:
+                self.target_floor = self.passengers[0][2]
+            elif self.active_requests:
+                self.target_floor = self.active_requests[0][1]
 
     def open_doors(self):
         self.door_open = True
-        self.time_to_next_action = 5  # Time for doors to open and close
+        self.time_to_next_action = 5
 
     def close_doors(self):
         self.door_open = False
-        # Continue to the next destination or wait
-        if self.passengers:
-            self.target_floor = min(self.passengers, key=lambda x: abs(x[3] - self.current_floor))[3]
-        elif self.active_requests:
-            self.target_floor = min(self.active_requests, key=lambda x: abs(x[1] - self.current_floor))[1]
 
     def format_requests(self):
-        # Show both active requests and passengers being transported
-        active = '; '.join(f"Active: ({r[0]}, {r[1]}, {r[2]}, {r[3]})" for r in self.active_requests)
-        passengers = '; '.join(f"Passenger: ({r[0]}, {r[1]}, {r[2]}, {r[3]})" for r in self.passengers)
+        active = '; '.join(f"Active: ({r[0]}, {r[1]}, {r[2]})" for r in self.active_requests)
+        passengers = '; '.join(f"Passenger: ({r[0]}, {r[1]}, {r[2]})" for r in self.passengers)
         return active + " | " + passengers if active and passengers else active + passengers
 
 class Simulation:
@@ -95,8 +91,8 @@ class Simulation:
             request_reader = csv.reader(csvfile, delimiter=',')
             next(request_reader)  # Skip header
             for row in request_reader:
-                time_step, start_floor, direction, destination_floor = int(row[0]), int(row[1]), row[2], int(row[3])
-                self.elevator.requests.append((time_step, start_floor, direction, destination_floor))
+                time_step, start_floor, destination_floor = int(row[0]), int(row[1]), int(row[2])
+                self.elevator.requests.append((time_step, start_floor, destination_floor))
 
     def run(self, total_time_steps):
         with open("output.txt", "w") as file:
@@ -111,5 +107,5 @@ class Simulation:
                 self.time_step += 1
 
 # Assuming the CSV input file structure is correct and exists, run the simulation:
-sim = Simulation(num_floors=10, scheduling_method='FCFS')
+sim = Simulation(num_floors=10, scheduling_method='SSTF')
 sim.run(200)  # Run the simulation for 200 time steps
