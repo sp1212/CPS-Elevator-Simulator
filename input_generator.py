@@ -14,9 +14,9 @@ def closing(num_floors):
         writer.writerow(['time_step', 'start_floor', 'destination_floor'])
 
 
-        for i in range(300):
+        for i in range(250):
             # number of requests to process in a time slice
-            num_request = random.randint(1, num_floors*2)
+            num_request = random.randint(1, num_floors)
             
 
             if(i > 200):
@@ -31,7 +31,7 @@ def closing(num_floors):
             # generate each request
             for ii in range(num_request):
                 
-                # cut half of these requests
+                # cut some of these requests
                 if random.randint(0, 10) < 5:
                     continue
                 start_floor = random.randint(1, num_floors)
@@ -48,9 +48,9 @@ def opening(num_floors):
         writer.writerow(['time_step', 'start_floor', 'destination_floor'])
 
 
-        for i in range(300):
+        for i in range(250):
             # number of requests to process in a time slice
-            num_request = random.randint(1, num_floors*2)
+            num_request = random.randint(1, num_floors)
             
 
             if(i > 200):
@@ -65,7 +65,7 @@ def opening(num_floors):
             # generate each request
             for ii in range(num_request):
                 
-                # cut half of these requests
+                # cut some of these requests
                 if random.randint(0, 10) < 5:
                     continue
                 start_floor = 1
@@ -84,11 +84,14 @@ def normal(num_floors):
         writer.writerow(['time_step', 'start_floor', 'destination_floor'])
 
 
-        for i in range(1000):
+
+        # for each time step
+        for i in range(300):
 
             # the number of requests to process
+            # 50% chance there are no requests in this time step
             num_request = random.randint(1, num_floors*2)
-            if num_request >num_floors:
+            if num_request > num_floors:
                 continue
 
             # generate each request

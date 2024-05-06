@@ -4,6 +4,11 @@ import csv
 import sys
 from itertools import chain
 
+import pandas as pd 
+import matplotlib.pyplot as plt 
+
+
+
 class Elevator:
     def __init__(self, num_floors, scheduling_method='FCFS'):
         self.current_floor = 1  # Starts at the lowest floor
@@ -152,7 +157,57 @@ class Simulation:
 
 # Assuming the CSV input file structure is correct and exists, run the simulation:
 
+# Visualization
+def plot_metrics(scenario, metric):
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=False)  # sharey is set to False
+    for i, floor in enumerate([5, 10, 50]):
+        subset = df[(df['Scenario'] == scenario) & (df['Floors'] == floor)]
+        subset.sort_values(by='Scheduling Method').plot(
+            x='Scheduling Method', y=metric, kind='bar', ax=axes[i], legend=None, title=f"{metric} for {floor} Floors"
+        )
+        axes[i].set_xlabel('')
+        axes[i].set_ylabel(metric)
+    plt.suptitle(f'{metric} Comparison Across Floors for {scenario} Scenario')
+    plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust layout to make room for the title
+    filename = f'{scenario}_{metric.replace(" ", "_")}.png'
+    plt.savefig(filename)  # Ensure saving happens after plotting
+    plt.close(fig)  # Close the figure to free up memory
+
+
+
+def run_and_plot_all():
+    results = []
+
+    # Assuming Simulation is a class you have that can run these simulations
+    for f in ['test/normal_', 'test/opening_', 'test/closing_']:
+        for ff in [5, 10, 50]:
+            for fff in ['Directional', 'FCFS', 'SSTF']:
+                sim = Simulation(num_floors=ff, scheduling_method=fff, input_file=f"{f}{ff}.csv")
+                sim.run()
+                print(f"Scheduling Method: {sim.scheduling_method}, Floors: {sim.num_floors}, Input File: {sim.input_file}")
+                print(f"Total Floors Traversed: {sim.elevator.floors_traversed}")
+                print(f"Total Time Steps Taken: {sim.time_step}")
+                print(f"Total Requests Completed: {sim.elevator.requests_completed}")
+                results.append({
+                    'Scenario': f.split('/')[1],
+                    'Floors': ff,
+                    'Scheduling Method': fff,
+                    'Total Floors Traversed': sim.elevator.floors_traversed,
+                    'Total Time Steps Taken': sim.time_step,
+                    'Total Requests Completed': sim.elevator.requests_completed
+                })
+                print(f"{f}{ff}.csv --> {fff}")
+
+    # Convert list to DataFrame
+    df = pd.DataFrame(results)
+    for scenario in df['Scenario'].unique():
+        plot_metrics(scenario, 'Total Floors Traversed')
+        plot_metrics(scenario, 'Total Time Steps Taken')
+
+
 if __name__ == "__main__":
+
+
     if len(sys.argv) == 4:
         sim = Simulation(num_floors=sys.argv[2], scheduling_method=str(sys.argv[3]), input_file=str(sys.argv[1]))
         sim.run()
@@ -165,4 +220,3 @@ if __name__ == "__main__":
         print("Usage: python run.py <input_file> <num_floors> <scheduling_method>")
         print("\t<scheduling_method> = {Directional, FCFS, SSTF}")
 
-# sim.run()  # Run the simulation until all requests are handled or 10,000 steps are reached
