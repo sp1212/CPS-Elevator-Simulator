@@ -17,6 +17,7 @@ class Elevator:
         self.target_floor = None  # Next target to stop at
         self.floors_traversed = 0  # Initialize total floors traversed counter
         self.requests_completed = 0  # Initialize total completed requests counter
+        self.max_passengers = 6  # Maximum number of passengers allowed in the elevator
 
     def move(self, current_time_step):
         while self.requests and self.requests[0][0] == current_time_step:
@@ -43,41 +44,59 @@ class Elevator:
             self.time_to_next_action = 2
 
     def process_requests(self):
+        # Process passengers reaching their destination
         for passenger in list(self.passengers):
             if passenger[2] == self.current_floor:
                 self.open_doors()
                 self.passengers.remove(passenger)
                 self.requests_completed += 1  # Increment request completion count
 
-        for request in list(self.active_requests):
-            if request[1] == self.current_floor:
-                self.open_doors()
-                self.passengers.append(request)
-                self.active_requests.remove(request)
+        # Board new passengers if there is capacity
+        if len(self.passengers) < self.max_passengers:
+            for request in list(self.active_requests):
+                if request[1] == self.current_floor and len(self.passengers) < self.max_passengers:
+                    self.open_doors()
+                    self.passengers.append(request)
+                    self.active_requests.remove(request)
+                    if len(self.passengers) >= self.max_passengers:
+                        break
 
         if not self.door_open:
             self.update_target_floor()
 
     def update_target_floor(self):
+        destinations = [p[2] for p in self.passengers]  # Destinations of current passengers
+        request_destinations = [r[1] for r in self.active_requests]
+
         if self.scheduling_method == 'SSTF':
-            all_destinations = [p[2] for p in self.passengers] + [r[1] for r in self.active_requests]
+            # Combine destinations of passengers and active request floors if below capacity
+            all_destinations = destinations + ([r[1] for r in self.active_requests if len(self.passengers) < self.max_passengers])
             if all_destinations:
                 self.target_floor = min(all_destinations, key=lambda x: abs(x - self.current_floor))
+            else:
+                # If no destinations or active requests, the elevator stays idle until a new request arrives
+                self.target_floor = None
+
         elif self.scheduling_method == 'Directional':
-            current_destinations = [p[2] for p in self.passengers] + [r[1] for r in self.active_requests]
-            in_direction = list(filter(lambda x: (x - self.current_floor) * self.direction > 0, current_destinations))
-            if not in_direction and current_destinations:
-                self.direction *= -1
-                in_direction = list(filter(lambda x: (x - self.current_floor) * self.direction > 0, current_destinations))
-            if in_direction:
-                self.target_floor = sorted(in_direction, key=lambda x: abs(x - self.current_floor))[0]
+            in_direction = list(filter(lambda x: (x - self.current_floor) * self.direction > 0, destinations + request_destinations))
+            if not in_direction:
+                self.direction *= -1  # Reverse the direction if no more floors in the current direction
+                in_direction = list(filter(lambda x: (x - self.current_floor) * self.direction > 0, destinations + request_destinations))
+            self.target_floor = in_direction[0] if in_direction else None
+
+        else:  # FCFS
+            # Prioritize destinations of passengers first, then the requests if there is space
+            if destinations:
+                self.target_floor = destinations[0]
+            elif len(self.passengers) < self.max_passengers and request_destinations:
+                self.target_floor = request_destinations[0]
             else:
                 self.target_floor = None
-        else:  # FCFS
-            if self.passengers:
-                self.target_floor = self.passengers[0][2]
-            elif self.active_requests:
-                self.target_floor = self.active_requests[0][1]
+
+        # Fallback to ensure the elevator doesn't idle if there are pending requests or passenger destinations
+        if self.target_floor is None and (destinations or request_destinations):
+            self.target_floor = destinations[0] if destinations else request_destinations[0] if request_destinations else None
+
 
     def open_doors(self):
         self.door_open = True
@@ -125,7 +144,6 @@ class Simulation:
         with open("output.txt", "w") as file:
             # Write the operation data
             file.writelines(output_lines)
-            # Move the header to just before the statistics
             file.write(f"Scheduling Method: {self.scheduling_method}, Floors: {self.num_floors}, Input File: {self.input_file}\n")
             file.write(f"Total Floors Traversed: {self.elevator.floors_traversed}\n")
             file.write(f"Total Time Steps Taken: {self.time_step}\n")
