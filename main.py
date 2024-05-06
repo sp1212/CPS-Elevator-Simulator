@@ -5,9 +5,9 @@ from itertools import chain
 
 class Elevator:
     def __init__(self, num_floors, scheduling_method='FCFS'):
-        self.current_floor = 1
+        self.current_floor = 1  # Starts at the lowest floor
         self.num_floors = num_floors
-        self.direction = 1  # 1 for up, -1 for down
+        self.direction = 1  # Initialize direction to go up initially
         self.door_open = False
         self.time_to_next_action = 0
         self.requests = []  # Future requests pending activation
@@ -15,6 +15,8 @@ class Elevator:
         self.passengers = []  # Passengers currently in the elevator
         self.scheduling_method = scheduling_method
         self.target_floor = None  # Next target to stop at
+        self.floors_traversed = 0  # Initialize total floors traversed counter
+        self.requests_completed = 0  # Initialize total completed requests counter
 
     def move(self, current_time_step):
         while self.requests and self.requests[0][0] == current_time_step:
@@ -34,15 +36,18 @@ class Elevator:
             self.process_requests()
 
     def move_towards_target(self):
-        step = 1 if self.target_floor > self.current_floor else -1
-        self.current_floor += step
-        self.time_to_next_action = 2
+        if self.target_floor is not None:
+            step = 1 if self.target_floor > self.current_floor else -1
+            self.current_floor += step
+            self.floors_traversed += 1
+            self.time_to_next_action = 2
 
     def process_requests(self):
         for passenger in list(self.passengers):
             if passenger[2] == self.current_floor:
                 self.open_doors()
                 self.passengers.remove(passenger)
+                self.requests_completed += 1  # Increment request completion count
 
         for request in list(self.active_requests):
             if request[1] == self.current_floor:
@@ -68,7 +73,7 @@ class Elevator:
                 self.target_floor = sorted(in_direction, key=lambda x: abs(x - self.current_floor))[0]
             else:
                 self.target_floor = None
-        else:
+        else:  # FCFS
             if self.passengers:
                 self.target_floor = self.passengers[0][2]
             elif self.active_requests:
@@ -87,33 +92,45 @@ class Elevator:
         return active + " | " + passengers if active and passengers else active + passengers
 
 class Simulation:
-    def __init__(self, num_floors, scheduling_method):
+    def __init__(self, num_floors, scheduling_method, input_file):
         self.elevator = Elevator(num_floors, scheduling_method)
         self.time_step = 0
         self.num_floors = num_floors
         self.scheduling_method = scheduling_method
+        self.input_file = input_file
         self.load_requests()
 
     def load_requests(self):
-        with open('input.csv', newline='') as csvfile:
+        with open(self.input_file, newline='') as csvfile:
             request_reader = csv.reader(csvfile, delimiter=',')
-            next(request_reader)
+            next(request_reader)  # Skip header
             for row in request_reader:
                 time_step, start_floor, destination_floor = int(row[0]), int(row[1]), int(row[2])
                 self.elevator.requests.append((time_step, start_floor, destination_floor))
 
-    def run(self, total_time_steps):
+    def run(self):
+        total_time_steps = 10000  # Maximum time steps as a timeout
+        output_lines = []  # Collect all output lines to write at once
+        output_lines.append("Time Step,Current Floor,Doors Status,Moving Status,Requests\n")  # Column header
+        while self.time_step < total_time_steps and (self.elevator.requests or self.elevator.active_requests or self.elevator.passengers):
+            self.elevator.move(self.time_step)
+            moving_status = 'Moving' if not self.elevator.door_open and self.elevator.current_floor != self.elevator.target_floor else 'Stationary'
+            doors_status = 'Open' if self.elevator.door_open else 'Closed'
+            requests_status = self.elevator.format_requests()
+            output_lines.append(f"{self.time_step},{self.elevator.current_floor},{doors_status},{moving_status},{requests_status}\n")
+            self.time_step += 1
+            if not self.elevator.requests and not self.elevator.active_requests and not self.elevator.passengers:
+                break  # All requests are handled, terminate early
+
         with open("output.txt", "w") as file:
-            file.write(f"Scheduling Method: {self.scheduling_method}, Floors: {self.num_floors}, Total Time Steps: {total_time_steps}\n")
-            file.write("Time Step,Current Floor,Doors Status,Moving Status,Requests\n")
-            for _ in range(total_time_steps):
-                self.elevator.move(self.time_step)
-                moving_status = 'Moving' if not self.elevator.door_open and self.elevator.current_floor != self.elevator.target_floor else 'Stationary'
-                doors_status = 'Open' if self.elevator.door_open else 'Closed'
-                requests_status = self.elevator.format_requests()
-                file.write(f"{self.time_step},{self.elevator.current_floor},{doors_status},{moving_status},{requests_status}\n")
-                self.time_step += 1
+            # Write the operation data
+            file.writelines(output_lines)
+            # Move the header to just before the statistics
+            file.write(f"Scheduling Method: {self.scheduling_method}, Floors: {self.num_floors}, Input File: {self.input_file}\n")
+            file.write(f"Total Floors Traversed: {self.elevator.floors_traversed}\n")
+            file.write(f"Total Time Steps Taken: {self.time_step}\n")
+            file.write(f"Total Requests Completed: {self.elevator.requests_completed}\n")
 
 # Assuming the CSV input file structure is correct and exists, run the simulation:
-sim = Simulation(num_floors=10, scheduling_method='FCFS')
-sim.run(200)  # Run the simulation for 200 time steps
+sim = Simulation(num_floors=10, scheduling_method='Directional', input_file='input.csv')
+sim.run()  # Run the simulation until all requests are handled or 10,000 steps are reached
