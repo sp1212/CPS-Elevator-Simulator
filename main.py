@@ -1,6 +1,7 @@
 # This code was adapted with the help of ChatGPT
 
 import csv
+import sys
 from itertools import chain
 
 class Elevator:
@@ -128,7 +129,7 @@ class Simulation:
                 self.elevator.requests.append((time_step, start_floor, destination_floor))
 
     def run(self):
-        total_time_steps = 10000  # Maximum time steps as a timeout
+        total_time_steps = 6969696969  # Maximum time steps as a timeout
         output_lines = []  # Collect all output lines to write at once
         output_lines.append("Time Step,Current Floor,Doors Status,Moving Status,Requests\n")  # Column header
         while self.time_step < total_time_steps and (self.elevator.requests or self.elevator.active_requests or self.elevator.passengers):
@@ -150,5 +151,18 @@ class Simulation:
             file.write(f"Total Requests Completed: {self.elevator.requests_completed}\n")
 
 # Assuming the CSV input file structure is correct and exists, run the simulation:
-sim = Simulation(num_floors=10, scheduling_method='Directional', input_file='input.csv')
-sim.run()  # Run the simulation until all requests are handled or 10,000 steps are reached
+
+if __name__ == "__main__":
+    if len(sys.argv) == 4:
+        sim = Simulation(num_floors=sys.argv[2], scheduling_method=str(sys.argv[3]), input_file=str(sys.argv[1]))
+        sim.run()
+        print(f"Scheduling Method: {sim.scheduling_method}, Floors: {sim.num_floors}, Input File: {sim.input_file}\n")
+        print(f"Total Floors Traversed: {sim.elevator.floors_traversed}\n")
+        print(f"Total Time Steps Taken: {sim.time_step}\n")
+        print(f"Total Requests Completed: {sim.elevator.requests_completed}\n")
+        
+    else:
+        print("Usage: python run.py <input_file> <num_floors> <scheduling_method>")
+        print("\t<scheduling_method> = {Directional, FCFS, SSTF}")
+
+# sim.run()  # Run the simulation until all requests are handled or 10,000 steps are reached
